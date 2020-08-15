@@ -1,0 +1,15 @@
+{
+  "name": "tiny-promise",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "promises-aplus-tests test/adapter"
+  },
+  "keywords": [],
+  "author": "uniquexiaobai",
+  "license": "ISC",
+  "devDependencies": {
+    "promises-aplus-tests": "*"
+  }
+}
