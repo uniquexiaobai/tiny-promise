@@ -42,7 +42,11 @@ function TPromise(executor) {
   const onResolved = value => transition(this, 'resolved', value);
   const onRejected = reason => transition(this, 'rejected', reason);
 
+  let ignore = false;
   const resolve = value => {
+    if (ignore) return;
+    ignore = true;
+
     // if (value === this) return;
     // if (value instanceof TPromise) {
     //   value.then(onResolved, onRejected);
@@ -60,6 +64,9 @@ function TPromise(executor) {
     onResolved(value);
   };
   const reject = reason => {
+    if (ignore) return;
+    ignore = true;
+
     onRejected(reason);
   };
 
@@ -86,8 +93,17 @@ TPromise.prototype.catch = function (onRejected) {
   return this.then(null, onRejected);
 };
 
-TPromise.prototype.finally = function () {
-  // TODO
+TPromise.prototype.finally = function (callback) {
+  return this.then(
+    value => {
+      callback();
+      return TPromise.resolve(value);
+    },
+    reason => {
+      callback();
+      return TPromise.reject(reason);
+    }
+  );
 };
 
 TPromise.resolve = function (value) {
@@ -100,7 +116,31 @@ TPromise.reject = function (reason) {
 
 TPromise.race = function (promises) {
   return new TPromise((resolve, reject) => {
-    promises.forEach(promise => promise.then(resolve, reject).catch(reject));
+    for (let i = 0, len = promises.length; i < len; i++) {
+      promises[i].then(resolve, reject);
+    }
+  });
+};
+
+// 返回第一个 resolved 的值，race 是返回第一个 resolve 或 reject 的值
+// ES2021 时加入
+TPromise.any = function (promises) {
+  return new TPromise((resolve, reject) => {
+    let count = 0;
+    for (let i = 0, len = promises.length; i < len; i++) {
+      promises[i]
+        .then(data => {
+          resolve(data);
+        })
+        .catch(() => {
+          count += 1;
+          if (count === len) {
+            // should throw AggregateError
+            let error = new Error('Every promise rejected');
+            reject(error);
+          }
+        });
+    }
   });
 };
 
@@ -109,6 +149,8 @@ TPromise.all = function (promises) {
     let count = 0,
       result = [];
     for (let i = 0, len = promises.length; i < len; i++) {
+      // Promise.resolve(Promise.resolve()) error
+      // TPromise.resolve(promises[i])
       promises[i]
         .then(data => {
           result[i] = data;
@@ -124,7 +166,7 @@ TPromise.all = function (promises) {
   });
 };
 
-TPromise.allSettle = function (promises) {
+TPromise.allSettled = function (promises) {
   return new TPromise((resolve, reject) => {
     let i = 0,
       result = [];
@@ -156,6 +198,8 @@ const p = new TPromise((resolve, reject) => {
 
 // p.then(data => {
 //   console.log('then', data);
+// }).finally(() => {
+//   console.log('finally');
 // });
 
 // p.then(() => {}).then(data => {
@@ -187,7 +231,63 @@ const p = new TPromise((resolve, reject) => {
 // });
 
 // TPromise.reject(3)
-// .then(value => {})
+//   .then(value => {})
 //   .catch(err => {
 //     console.log('test catch', err);
+//   });
+
+// TPromise.all([Promise.resolve(1), Promise.resolve(2)])
+//   .then(data => {
+//     console.log('then', data);
+//   })
+//   .catch(err => {
+//     console.log('catch', err);
+//   });
+
+// TPromise.all([Promise.resolve(1), Promise.reject('this is error')])
+//   .then(data => {
+//     console.log('then', data);
+//   })
+//   .catch(err => {
+//     console.log('catch', err);
+//   });
+
+// TPromise.race([Promise.resolve(1), Promise.resolve(2)])
+//   .then(data => {
+//     console.log('then', data);
+//   })
+//   .catch(err => {
+//     console.log('catch', err);
+//   });
+
+// TPromise.race([Promise.reject('this is error'), Promise.resolve(1)])
+//   .then(data => {
+//     console.log('then', data);
+//   })
+//   .catch(err => {
+//     console.log('catch', err);
+//   });
+
+// TPromise.any([Promise.resolve(1), Promise.resolve(2)])
+//   .then(data => {
+//     console.log('then', data);
+//   })
+//   .catch(err => {
+//     console.log('catch', err);
+//   });
+
+// TPromise.any([Promise.reject('this is error'), Promise.resolve(1)])
+//   .then(data => {
+//     console.log('then', data);
+//   })
+//   .catch(err => {
+//     console.log('catch', err);
+//   });
+
+// TPromise.allSettled([Promise.resolve(1), Promise.reject('this is error')])
+//   .then(data => {
+//     console.log('then', data);
+//   })
+//   .catch(err => {
+//     console.log('catch', err);
 //   });
